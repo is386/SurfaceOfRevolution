@@ -111,8 +111,6 @@ def apply_tension(T, tension):
 
 # Evaluates the Bezier curve formula and returns a collection of points on the curve
 def bezier(P, n):
-    u = 0
-    du = 1 / n
     Q = []
 
     M = np.asarray([
@@ -123,13 +121,10 @@ def bezier(P, n):
     ])
 
     # Computes the Bezier curve point for each value of u
-    while u < 1:
+    for u in np.linspace(0, 1, n):
         Q_u = P.T @ M @ np.asarray([pow(u, 3), pow(u, 2), u, 1]).T
         Q.append(Q_u)
-        u += du
 
-    # Add the end point
-    Q.append(P[-1])
     return np.round(np.asarray(Q), 6)
 
 
@@ -163,11 +158,10 @@ def get_triangles(patch, num_u, num_v):
 
 
 # Computes the normal by computing the cross product of the vectors
-# tangent to u and v
-def compute_normal(P, num_u, num_v):
+# tangent to u and theta
+def compute_normal(P, S, num_u, num_v):
     du = 1 / (num_u - 1)
-    dv = 1 / (num_v - 1)
-    tan_s = []
+    tan_u = []
     tan_t = []
 
     M = np.asarray([
@@ -178,33 +172,26 @@ def compute_normal(P, num_u, num_v):
     ])
 
     # Calulcates the u tangent
-    u = 0
-    while u <= 1:
-        v = 0
-        while v <= 1:
-            T = np.asarray([pow(v, 3), pow(v, 2), v, 1])
-            S = np.asarray([3 * pow(u, 2), 2 * u, 1, 0])
-            point = T @ M @ P.T @ M.T @ S.T
-            tan_s.append(point)
-            v += dv
-        u += du
+    # u = 0
+    # while u <= 1:
+    #     v = 0
+    #     while v <= 1:
+    #         T = np.asarray([pow(v, 3), pow(v, 2), v, 1])
+    #         S = np.asarray([3 * pow(u, 2), 2 * u, 1, 0])
+    #         point = T @ M @ P.T @ M.T @ S.T
+    #         tan_u.append(point)
+    #         v += dv
+    #     u += du
 
-    # Calculates the v tangent
-    v = 0
-    while v <= 1:
-        u = 0
-        while u <= 1:
-            S = np.asarray([pow(v, 3), pow(v, 2), v, 1])
-            T = np.asarray([3 * pow(u, 2), 2 * u, 1, 0])
-            point = T @ M @ P.T @ M.T @ S.T
-            tan_t.append(point)
-            u += du
-        v += dv
-
-    tan_s = np.asarray(tan_s)
-    tan_t = np.asarray(tan_t)
-    norm = np.cross(tan_s, tan_t)
-    return np.round(norm, 6)
+    # Calculates the theta tangent
+    for point in S:
+        tan = np.asarray([-1 * point[1], point[0], 0])
+        tan_t.append(tan)
+    print(np.asarray(tan_t))
+    # tan_u = np.asarray(tan_u)
+    # tan_t = np.asarray(tan_t)
+    # norm = np.cross(tan_u, tan_t)
+    # return np.round(norm, 6)
 
 
 # Prints the inventor file
@@ -264,11 +251,11 @@ def main():
 
     # Calculates the normal vector for shading
     norm = None
-    if isSmooth:
-        norm = compute_normal(P, CR.shape[0], num_t)
+    # if isSmooth:
+    #     norm = compute_normal(P, S, CR.shape[0], num_t)
 
     # Prints in the inventor format
-    #print_inventor(P, S, triangles, isSmooth, norm)
+    print_inventor(P, S, triangles, isSmooth, norm)
 
 
 if __name__ == "__main__":
