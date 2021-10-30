@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 from argparse import ArgumentParser
-from math import cos, pi, sin
+from math import cos, isclose, pi, sin
 from os.path import exists
 
 import numpy as np
@@ -63,19 +63,20 @@ def compute_catmull_rom(P, num_u):
 
     # Computes the bezier curve for each set of control points
     CR = []
+    CR_prime = []
     for p in Pctl:
-        cr = bezier(p, num_u)
+        cr, prime = bezier(p, num_u)
         CR.append(cr)
+        CR_prime.append(prime)
 
     # Reshapes the curve matrix from 3D to 2D
     CR = np.asarray(CR)
     CR = CR.reshape((CR.shape[0] * CR.shape[1], CR.shape[2]))
+    CR_prime = np.asarray(CR_prime)
+    CR_prime = CR_prime.reshape(
+        (CR_prime.shape[0] * CR_prime.shape[1], CR_prime.shape[2]))
 
-    # Add endpoint
-    end = P[-1].reshape((1, 3))
-    CR = np.concatenate((CR, end))
-
-    return np.round(CR, 6)
+    return np.round(CR, 6), np.round(CR_prime, 6)
 
 
 # Computes the tangents for the interior input points
@@ -111,7 +112,10 @@ def apply_tension(T, tension):
 
 # Evaluates the Bezier curve formula and returns a collection of points on the curve
 def bezier(P, n):
+    du = 1 / n
+    u = 0
     Q = []
+    Q_prime = []
 
     M = np.asarray([
         [-1, 3, -3, 1],
@@ -121,11 +125,14 @@ def bezier(P, n):
     ])
 
     # Computes the Bezier curve point for each value of u
-    for u in np.linspace(0, 1 - (1/n), n):
+    while u <= 1 or isclose(u, 1, abs_tol=1e-8):
         Q_u = P.T @ M @ np.asarray([pow(u, 3), pow(u, 2), u, 1]).T
         Q.append(Q_u)
+        Q_p = P.T @ M @ np.asarray([3 * pow(u, 2), 2 * u, 1, 0]).T
+        Q_prime.append(Q_p)
+        u += du
 
-    return Q
+    return Q, Q_prime
 
 
 # Returns the surface of revolution given a line
@@ -138,6 +145,15 @@ def compute_surface_of_revolution(CR, num_t):
             S.append(s)
 
     return np.round(np.asarray(S), 6)
+
+
+# Computes the tangent of the surface with regards to theta
+def compute_theta_tangent(S):
+    tan_t = []
+    for point in S:
+        tan = np.asarray([-1 * point[1], point[0], 0])
+        tan_t.append(tan)
+    return np.round(np.asarray(tan_t), 6)
 
 
 # Defines the triangles that connect the points in the patch
@@ -155,43 +171,6 @@ def get_triangles(patch, num_u, num_v):
             k += 1
 
     return np.asarray(triangles)
-
-
-# Computes the normal by computing the cross product of the vectors
-# tangent to u and theta
-def compute_normal(P, S, num_u, num_v):
-    du = 1 / (num_u - 1)
-    tan_u = []
-    tan_t = []
-
-    M = np.asarray([
-        [-1, 3, -3, 1],
-        [3, -6, 3, 0],
-        [-3, 3, 0, 0],
-        [1, 0, 0, 0]
-    ])
-
-    # Calulcates the u tangent
-    # u = 0
-    # while u <= 1:
-    #     v = 0
-    #     while v <= 1:
-    #         T = np.asarray([pow(v, 3), pow(v, 2), v, 1])
-    #         S = np.asarray([3 * pow(u, 2), 2 * u, 1, 0])
-    #         point = T @ M @ P.T @ M.T @ S.T
-    #         tan_u.append(point)
-    #         v += dv
-    #     u += du
-
-    # Calculates the theta tangent
-    for point in S:
-        tan = np.asarray([-1 * point[1], point[0], 0])
-        tan_t.append(tan)
-    print(np.asarray(tan_t))
-    # tan_u = np.asarray(tan_u)
-    # tan_t = np.asarray(tan_t)
-    # norm = np.cross(tan_u, tan_t)
-    # return np.round(norm, 6)
 
 
 # Prints the inventor file
@@ -240,19 +219,25 @@ def main():
     # Parses points
     P = parse_points(filename)
 
-    # Get Catmull-Rom Spline
-    CR = compute_catmull_rom(P, num_u-1)
+    # Get Catmull-Rom Spline and its derivative
+    CR, CR_prime = compute_catmull_rom(P, num_u-1)
 
     # Get Surface of Revolution
     S = compute_surface_of_revolution(CR, num_t)
 
-    # Define triangles
-    triangles = get_triangles(S, CR.shape[0], num_t)
+    # Get tangent with regards to u
+    du = compute_surface_of_revolution(CR_prime, num_t)
+
+    # Get tangent with regards to theta
+    dt = compute_theta_tangent(S)
 
     # Calculates the normal vector for shading
     norm = None
-    # if isSmooth:
-    #     norm = compute_normal(P, S, CR.shape[0], num_t)
+    if isSmooth:
+        norm = np.round(np.cross(du, dt), 6)
+
+    # Define triangles
+    triangles = get_triangles(S, CR.shape[0], num_t)
 
     # Prints in the inventor format
     print_inventor(P, S, triangles, isSmooth, norm)
