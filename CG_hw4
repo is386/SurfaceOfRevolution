@@ -71,11 +71,11 @@ def compute_catmull_rom(P, num_u):
     CR = np.asarray(CR)
     CR = CR.reshape((CR.shape[0] * CR.shape[1], CR.shape[2]))
 
-    # Removes any redundant input points from the curves
-    # CR = [tuple(row) for row in CR]
-    # CR = np.sort(np.unique(CR, axis=0), axis=0)
+    # Add endpoint
+    end = P[-1].reshape((1, 3))
+    CR = np.concatenate((CR, end))
 
-    return CR
+    return np.round(CR, 6)
 
 
 # Computes the tangents for the interior input points
@@ -121,11 +121,11 @@ def bezier(P, n):
     ])
 
     # Computes the Bezier curve point for each value of u
-    for u in np.linspace(0, 1, n):
+    for u in np.linspace(0, 1 - (1/n), n):
         Q_u = P.T @ M @ np.asarray([pow(u, 3), pow(u, 2), u, 1]).T
         Q.append(Q_u)
 
-    return np.round(np.asarray(Q), 6)
+    return Q
 
 
 # Returns the surface of revolution given a line
@@ -241,7 +241,7 @@ def main():
     P = parse_points(filename)
 
     # Get Catmull-Rom Spline
-    CR = compute_catmull_rom(P, num_u)
+    CR = compute_catmull_rom(P, num_u-1)
 
     # Get Surface of Revolution
     S = compute_surface_of_revolution(CR, num_t)
