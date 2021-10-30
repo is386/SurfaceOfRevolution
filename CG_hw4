@@ -1,0 +1,275 @@
+#!/usr/bin/python3
+
+from argparse import ArgumentParser
+from math import cos, pi, sin
+from os.path import exists
+
+import numpy as np
+
+np.set_printoptions(suppress=True)
+
+DEFAULT_FILE = "rev_surf_in0.txt"
+DEFAULT_U = 12
+DEFAULT_T = 22
+
+
+# Parses and returns the filename, number of segments, and radius of the spheres
+def parse_args():
+    parser = ArgumentParser(description="Bi-cublic Bezier Patch")
+    parser.add_argument("-f", type=str, help="3D control points file")
+    parser.add_argument("-u", type=int, help="Number of point samples of u")
+    parser.add_argument("-t", type=int, help="Theta value")
+    parser.add_argument("-F", action="store_true", help="Toggle flat-shaded")
+    parser.add_argument("-S", action="store_true", help="Toggle smooth-shaded")
+
+    args = parser.parse_args()
+    filename = args.f if args.f else DEFAULT_FILE
+    u = args.u if args.u else DEFAULT_U
+    t = args.t if args.t else DEFAULT_T
+    isSmooth = args.S
+
+    return filename, u, t, isSmooth
+
+
+# Parses each control point and returns a matrix
+def parse_points(filename):
+    cpts_file = open(filename)
+    P = []
+
+    for line in cpts_file.readlines():
+        line = line.strip()
+        P.append(list(map(float, line.split(" "))))
+
+    return np.asarray(P)
+
+
+# Returns a Catmull-Rom Spline from the given control points
+def compute_catmull_rom(P, num_u):
+    # Split into tangents and points
+    T, P = np.vsplit(P, [2])
+
+    # Compute interior tangents and add them to the current tangent matrix
+    T2 = compute_interior_tangents(P)
+    if len(T2) > 0:
+        T2 = np.insert(T2, 0, T[0], axis=0)
+        T2 = np.insert(T2, len(T2), T[-1], axis=0)
+        T = T2
+
+    # Apply tension
+    T = apply_tension(T, 0)
+
+    # Compute Bezier control points by each two input points
+    Pctl = compute_control_points(P, T)
+
+    # Computes the bezier curve for each set of control points
+    CR = []
+    for p in Pctl:
+        cr = bezier(p, num_u)
+        CR.append(cr)
+
+    # Reshapes the curve matrix from 3D to 2D
+    CR = np.asarray(CR)
+    CR = CR.reshape((CR.shape[0] * CR.shape[1], CR.shape[2]))
+
+    # Removes any redundant input points from the curves
+    # CR = [tuple(row) for row in CR]
+    # CR = np.sort(np.unique(CR, axis=0), axis=0)
+
+    return CR
+
+
+# Computes the tangents for the interior input points
+def compute_interior_tangents(P):
+    T = []
+
+    for k in range(1, len(P) - 1):
+        t = (P[k+1] - P[k-1]) * 0.5
+        T.append(t)
+
+    return np.asarray(T)
+
+
+# Computes the Bezier control points given the initial points and tangents
+def compute_control_points(P, T):
+    Pctl = []
+
+    for k in range(len(P) - 1):
+        p1 = P[k] + (1 / 3 * T[k])
+        p2 = P[k+1] - (1 / 3 * T[k+1])
+        Pctl.append([P[k], p1, p2, P[k+1]])
+
+    return np.asarray(Pctl)
+
+
+# Applies tension to a set of tangents
+def apply_tension(T, tension):
+    T2 = []
+    for t in T:
+        T2.append(t * (1 - tension))
+    return np.asarray(T2)
+
+
+# Evaluates the Bezier curve formula and returns a collection of points on the curve
+def bezier(P, n):
+    u = 0
+    du = 1 / n
+    Q = []
+
+    M = np.asarray([
+        [-1, 3, -3, 1],
+        [3, -6, 3, 0],
+        [-3, 3, 0, 0],
+        [1, 0, 0, 0]
+    ])
+
+    # Computes the Bezier curve point for each value of u
+    while u < 1:
+        Q_u = P.T @ M @ np.asarray([pow(u, 3), pow(u, 2), u, 1]).T
+        Q.append(Q_u)
+        u += du
+
+    # Add the end point
+    Q.append(P[-1])
+    return np.round(np.asarray(Q), 6)
+
+
+# Returns the surface of revolution given a line
+def compute_surface_of_revolution(CR, num_t):
+    S = []
+
+    for point in CR:
+        for t in np.linspace(0, 2*pi, num_t):
+            s = np.asarray([point[0] * cos(t), point[0]*sin(t), point[2]])
+            S.append(s)
+
+    return np.round(np.asarray(S), 6)
+
+
+# Defines the triangles that connect the points in the patch
+def get_triangles(patch, num_u, num_v):
+    verts = np.reshape(np.arange(len(patch)), (num_u, num_v))
+    n = (num_u - 1) * (num_v - 1) * 2
+    triangles = [None for i in range(n)]
+
+    k = 0
+    for i in range(num_u - 1):
+        for j in range(num_v - 1):
+            triangles[k] = (verts[i][j], verts[i+1][j], verts[i][j+1])
+            k += 1
+            triangles[k] = (verts[i][j+1], verts[i+1][j], verts[i+1][j+1])
+            k += 1
+
+    return np.asarray(triangles)
+
+
+# Computes the normal by computing the cross product of the vectors
+# tangent to u and v
+def compute_normal(P, num_u, num_v):
+    du = 1 / (num_u - 1)
+    dv = 1 / (num_v - 1)
+    tan_s = []
+    tan_t = []
+
+    M = np.asarray([
+        [-1, 3, -3, 1],
+        [3, -6, 3, 0],
+        [-3, 3, 0, 0],
+        [1, 0, 0, 0]
+    ])
+
+    # Calulcates the u tangent
+    u = 0
+    while u <= 1:
+        v = 0
+        while v <= 1:
+            T = np.asarray([pow(v, 3), pow(v, 2), v, 1])
+            S = np.asarray([3 * pow(u, 2), 2 * u, 1, 0])
+            point = T @ M @ P.T @ M.T @ S.T
+            tan_s.append(point)
+            v += dv
+        u += du
+
+    # Calculates the v tangent
+    v = 0
+    while v <= 1:
+        u = 0
+        while u <= 1:
+            S = np.asarray([pow(v, 3), pow(v, 2), v, 1])
+            T = np.asarray([3 * pow(u, 2), 2 * u, 1, 0])
+            point = T @ M @ P.T @ M.T @ S.T
+            tan_t.append(point)
+            u += du
+        v += dv
+
+    tan_s = np.asarray(tan_s)
+    tan_t = np.asarray(tan_t)
+    norm = np.cross(tan_s, tan_t)
+    return np.round(norm, 6)
+
+
+# Prints the inventor file
+def print_inventor(P, patch, triangles, isSmooth, norm):
+    print("#Inventor V2.0 ascii\n\n")
+    print("ShapeHints {")
+    print("vertexOrdering        COUNTERCLOCKWISE")
+    print("}")
+    print("Separator { Coordinate3 { 	point [ ")
+    print_coords(patch)
+    print("] }")
+    if isSmooth:
+        print("NormalBinding {")
+        print("value        PER_VERTEX_INDEXED")
+        print("}")
+        print("Normal {")
+        print("    vector [")
+        print_coords(norm)
+        print("]}")
+    print("IndexedFaceSet {coordIndex [")
+    print_indices(triangles)
+    print("] } }")
+
+
+# Prints the coordinates for the inventor file
+def print_coords(Q):
+    for point in Q:
+        print("{:<08} {:<08} {:<08}".format(
+            point[0], point[1], point[2]), end=",\n")
+
+
+# Prints the coordinate indices for the inventor file
+def print_indices(triangles):
+    for point in triangles:
+        print("{}, {}, {}, -1".format(
+            point[0], point[1], point[2]), end=",\n")
+
+
+def main():
+    # Parses args
+    filename, num_u, num_t, isSmooth = parse_args()
+    if not exists(filename):
+        print("File not found.")
+        return None
+
+    # Parses points
+    P = parse_points(filename)
+
+    # Get Catmull-Rom Spline
+    CR = compute_catmull_rom(P, num_u)
+
+    # Get Surface of Revolution
+    S = compute_surface_of_revolution(CR, num_t)
+
+    # Define triangles
+    triangles = get_triangles(S, CR.shape[0], num_t)
+
+    # Calculates the normal vector for shading
+    norm = None
+    if isSmooth:
+        norm = compute_normal(P, CR.shape[0], num_t)
+
+    # Prints in the inventor format
+    #print_inventor(P, S, triangles, isSmooth, norm)
+
+
+if __name__ == "__main__":
+    main()
