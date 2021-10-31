@@ -173,6 +173,14 @@ def get_triangles(patch, num_u, num_v):
     return np.asarray(triangles)
 
 
+# Generates the caps by creating triangles for indices between start and end
+def generate_cap(start, end):
+    cap = []
+    for i in range(start+1, end-1):
+        cap.append((i, i-1, end-1))
+    return np.asarray(cap)
+
+
 # Prints the inventor file
 def print_inventor(P, patch, triangles, isSmooth, norm):
     print("#Inventor V2.0 ascii\n\n")
@@ -238,6 +246,13 @@ def main():
 
     # Define triangles
     triangles = get_triangles(S, CR.shape[0], num_t)
+
+    # Generate caps
+    n = S.shape[0]
+    capBot = generate_cap(0, num_t)
+    capTop = generate_cap(n-num_t+1, n)
+    triangles = np.concatenate((triangles, capBot))
+    triangles = np.concatenate((triangles, capTop))
 
     # Prints in the inventor format
     print_inventor(P, S, triangles, isSmooth, norm)
