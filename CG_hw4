@@ -15,20 +15,22 @@ DEFAULT_T = 22
 
 # Parses and returns the filename, number of segments, and radius of the spheres
 def parse_args():
-    parser = ArgumentParser(description="Bi-cublic Bezier Patch")
+    parser = ArgumentParser(description="Surface of Revolution")
     parser.add_argument("-f", type=str, help="3D control points file")
     parser.add_argument("-u", type=int, help="Number of point samples of u")
     parser.add_argument("-t", type=int, help="Theta value")
     parser.add_argument("-F", action="store_true", help="Toggle flat-shaded")
     parser.add_argument("-S", action="store_true", help="Toggle smooth-shaded")
+    parser.add_argument("-C", action="store_true", help="Toggle caps")
 
     args = parser.parse_args()
     filename = args.f if args.f else DEFAULT_FILE
     u = args.u if args.u else DEFAULT_U
     t = args.t if args.t else DEFAULT_T
     isSmooth = args.S
+    caps = args.C
 
-    return filename, u, t, isSmooth
+    return filename, u, t, isSmooth, caps
 
 
 # Parses each control point and returns a matrix
@@ -219,7 +221,7 @@ def print_indices(triangles):
 
 def main():
     # Parses args
-    filename, num_u, num_t, isSmooth = parse_args()
+    filename, num_u, num_t, isSmooth, caps = parse_args()
     if not exists(filename):
         print("File not found.")
         return None
@@ -248,11 +250,12 @@ def main():
     triangles = get_triangles(S, CR.shape[0], num_t)
 
     # Generate caps
-    n = S.shape[0]
-    capBot = generate_cap(0, num_t)
-    capTop = generate_cap(n-num_t+1, n)
-    triangles = np.concatenate((triangles, capBot))
-    triangles = np.concatenate((triangles, capTop))
+    if caps:
+        n = S.shape[0]
+        capBot = generate_cap(0, num_t)
+        capTop = generate_cap(n-num_t, n)
+        triangles = np.concatenate((capBot, triangles))
+        triangles = np.concatenate((capTop, triangles))
 
     # Prints in the inventor format
     print_inventor(P, S, triangles, isSmooth, norm)

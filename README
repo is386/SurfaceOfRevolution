@@ -1,0 +1,30 @@
+Indervir Singh
+CS536
+11/02/2021
+
+My source code is included in CG_hw4. It is written in Python and I included a shebang at
+the top so that it could run in the way the professor preferred. All tests ran fine on Tux.
+
+Extra Credit:
+I did attempt the extra credit for this assignment. It works fine overall, but the caps are
+colored black for smooth shaded.
+
+Features:
+My program takes in args -f, -u, -t, -F, -S and -C. They are optional and there are default
+values set. It parses the given file for the given control points. Next, it will compute
+the Catmull-Rom using the given num_u parameter. The program then computes the surface of
+revolution using num_t. It then defines the triangles and computes the surface normal if 
+specified. Finally, the program will print out the necessary points and data in the inventor 
+format.
+
+Surface Normals:
+My surface normal calculations are done in the file CG_hw4. For the theta tangent, I have a 
+function defined on line 153. For the u tangent, I compute the derivative of my Catmull-Rom
+in the bezier function on line 116. I then get the u tangent by computing the surface of 
+revolution of the derivative on line 239. Finally I take the cross product of the two
+tangents on line 247.
+
+Language: Python 3
+OS: Ubuntu 20.04.3 LTS
+Interpreter: Python 3 Interpreter
+Name of File containing main(): CG_hw4
