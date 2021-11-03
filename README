@@ -6,8 +6,7 @@ My source code is included in CG_hw4. It is written in Python and I included a s
 the top so that it could run in the way the professor preferred. All tests ran fine on Tux.
 
 Extra Credit:
-I did attempt the extra credit for this assignment. It works fine overall, but the caps are
-colored black for smooth shaded.
+I implemented the triangle fan caps for this assignment. The function is defined on line 179
 
 Features:
 My program takes in args -f, -u, -t, -F, -S and -C. They are optional and there are default

@@ -179,7 +179,7 @@ def get_triangles(patch, num_u, num_v):
 def generate_cap(start, end):
     cap = []
     for i in range(start+1, end-1):
-        cap.append((i, i-1, end-1))
+        cap.append((end-1, i-1, i))
     return np.asarray(cap)
 
 
