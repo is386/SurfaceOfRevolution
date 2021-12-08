@@ -1,6 +1,6 @@
 # Surface of Revolution
 
-This is a program that takes in an image and resizes it using Seam Carving. It only has support for removing seams, but it can use both backward and forward energy methods.
+This is a program that takes in control points for a Catmull-Rom spline and generates Surface of Revolution.
 
 ## Usage
 
