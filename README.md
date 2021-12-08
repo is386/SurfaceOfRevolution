@@ -2,6 +2,8 @@
 
 This is a program that takes in control points for a Catmull-Rom spline and generates Surface of Revolution.
 
+![](https://github.com/is386/SurfaceOfRevolution/blob/main/result.png?raw=true)
+
 ## Usage
 
 `./CG_hw4 [-h] [-f F] [-u U] [-t T] [-F] [-S] [-C]`
